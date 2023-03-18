@@ -54,7 +54,7 @@ class CypheredGUI(BasicGUI):
         dpg.show_item("chat_windows")
         dpg.set_value("screen", "Connecting")
 
-    def encrypt(_in:str)->tuple(bytes,bytes):
+    def encrypt(self,_in:str)->tuple(bytes,bytes):
 
         size_of_key=16 # in bytes, so 128 bits
         
@@ -81,7 +81,7 @@ class CypheredGUI(BasicGUI):
         
         return iv,encrypted
         
-    def decrypt(iv,encrypted:tuple(bytes,bytes))->str:
+    def decrypt(self,iv,encrypted:tuple(bytes,bytes))->str:
         
         size_of_key=16
         kdf=PBKDF2HMAC(
