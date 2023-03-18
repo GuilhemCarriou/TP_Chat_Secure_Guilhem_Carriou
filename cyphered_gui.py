@@ -100,5 +100,21 @@ class CypheredGUI(BasicGUI):
         result=unpadder.update(result_padded)+unpadder.finalize()
 
         return result.decode('utf-8')
+    
+    def send(self,message:str):
+        iv,encrypted_message=self.encrypt(message)
+        self._client.send_message(encrypted_message)
+        #BasicGUI.send(encrypted_message)
+    
+    def recv(self,message:str):
+        # detecter si message a déjà été déchiffrer
+        # pour éviter que déchiffrement h24 pour chaque message
+        if self._callback is not None:
+            for user, message in self._callback.get():
+                self.update_text_screen(f"{user} : {self.decrypt(message)}")
+            self._callback.clear()
+
+        
+        
 
 
