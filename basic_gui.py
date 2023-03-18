@@ -117,6 +117,7 @@ class BasicGUI:
             dpg.render_dearpygui_frame()
 
         dpg.destroy_context()
+    
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
