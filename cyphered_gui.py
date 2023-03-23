@@ -1,4 +1,5 @@
 import os
+import base64
 import logging
 import dearpygui.dearpygui as dpg
 from basic_gui import *
@@ -15,7 +16,10 @@ DEFAULT_VALUES = {
     "name" : "foo",
     "pwd"  : "pwd_by_def" # Ajout d'un champ password 
 }
+
 SALT_BY_DEFAULT="kD5meEw298t1pOaG".encode('utf-8') # constant pour ce tp
+SIZE_KEY=16
+N_ITERATION=100000
 
 class CypheredGUI(BasicGUI):
     
@@ -31,7 +35,10 @@ class CypheredGUI(BasicGUI):
             for field in DEFAULT_VALUES.keys():
                 with dpg.group(horizontal=True):
                     dpg.add_text(field)
-                    dpg.add_input_text(default_value=DEFAULT_VALUES[field], tag=f"connection_{field}")
+                    if(field!='pwd'):
+                        dpg.add_input_text(default_value=DEFAULT_VALUES[field], tag=f"connection_{field}")
+                    else :
+                        dpg.add_input_text(default_value=DEFAULT_VALUES[field], tag=f"connection_{field}",password=True)
 
             dpg.add_button(label="Connect", callback=self.run_chat)
 
@@ -40,8 +47,15 @@ class CypheredGUI(BasicGUI):
         host = dpg.get_value("connection_host")
         port = int(dpg.get_value("connection_port"))
         name = dpg.get_value("connection_name")
-        pwd = dpg.get_value("connection_pwd") 
+        pwd:str = dpg.get_value("connection_pwd") 
 
+        kdf=PBKDF2HMAC(
+            algorithm=hashes.SHA256(),#algorithms.AES128(self._key),#AES128(self._key),
+            length=SIZE_KEY,
+            salt=SALT_BY_DEFAULT,
+            iterations=N_ITERATION
+        )
+        self._key=kdf.derive(pwd.encode('utf-8'))
 
         self._log.info(f"Connecting {name}@{host}:{port}")
         self._callback = GenericCallback()
@@ -49,32 +63,17 @@ class CypheredGUI(BasicGUI):
         self._client.start(self._callback)
         self._client.register(name)
 
-        #self.key=
-
         dpg.hide_item("connection_windows")
         dpg.show_item("chat_windows")
         dpg.set_value("screen", "Connecting")
 
     def encrypt(self,_in:str)->tuple([bytes,bytes]):
-
-        size_of_key=16 # in bytes, so 128 bits
         
+        iv=bytes(os.urandom(SIZE_KEY))
+
         size_of_block=algorithms.AES128.block_size
-        
-        kdf= PBKDF2HMAC(
-            algorithm=hashes.SHA256(),#algorithms.AES128(self._key),#SHA256?
-            length=size_of_key, # 16 bytes asked for key length
-            salt=SALT_BY_DEFAULT,
-            iterations=100000
-        )
-
-        self._key=kdf.derive(SALT_BY_DEFAULT)#DEFAULT_VALUES["pwd"])
-        
-
-        iv=os.urandom(size_of_key) #
-
         padder=padding.PKCS7(size_of_block).padder()
-        serialization=serpent.dumps(_in,encoding='utf-8')
+        serialization=serpent.dumps(_in)#,encoding='utf-8'
         input_bytes=serpent.tobytes(serialization)
         data_padded=padder.update(input_bytes)+padder.finalize()#_in.encode('utf-8')
 
@@ -82,44 +81,37 @@ class CypheredGUI(BasicGUI):
         
         encryptor =cipher.encryptor() 
         encrypted=encryptor.update(data_padded)+encryptor.finalize() # Données chiffrées
-        
-        return iv,encrypted
+        print("iv ",(iv))
+        print("encry ",(encrypted))
+        return (iv,encrypted)
         
     def decrypt(self,iv:bytes,encrypted:bytes)->str:
         
-        size_of_key=16
-        kdf=PBKDF2HMAC(
-            algorithms=hashes.SHA256(),#algorithms.AES128(self._key),#AES128(self._key),
-            length=size_of_key,
-            salt=SALT_BY_DEFAULT,
-            iterations=100000
-        )
-        self._key=kdf.derive(DEFAULT_VALUES["pwd"])
-
+        iv=base64.b64decode(iv)
+        encrypted=base64.b64decode(encrypted)
         cipher=Cipher(algorithms.AES128(self._key),modes.CTR(iv))
         decryptor=cipher.decryptor()
         
         result_padded=decryptor.update(encrypted)+decryptor.finalize()
-        unpadder=PKCS7(size_of_key*8).unpadder()
+        unpadder=PKCS7(SIZE_KEY*8).unpadder()
         result=unpadder.update(result_padded)+unpadder.finalize()
 
         return result.decode('utf-8')
     
     def send(self,message:str):
-        iv,encrypted_message=self.encrypt(message)
         self._client.send_message(self.encrypt(message))
         #BasicGUI.send(encrypted_message)
     
     def recv(self):
-        # detecter si message a déjà été déchiffrer
-        # pour éviter que déchiffrement h24 pour chaque message
+        
         if self._callback is not None:
             for user, message in self._callback.get():
-                self.update_text_screen(f"{user} : {self.decrypt(message)}")
+                self.update_text_screen(f"{user} : {self.decrypt(message[0]['data'],message[1]['data'])}")
             self._callback.clear()
 
 
 if __name__=="__main__":
+
     logging.basicConfig(level=logging.DEBUG)
     
     client_secured=CypheredGUI()
