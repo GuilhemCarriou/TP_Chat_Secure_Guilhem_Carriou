@@ -1,14 +1,17 @@
 import os
 import base64
 import logging
-import dearpygui.dearpygui as dpg
-from basic_gui import *
 import serpent
-from cryptography.hazmat.primitives.ciphers import algorithms,modes,Cipher
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import padding, hashes
+import dearpygui.dearpygui as dpg
+from chat_client import ChatClient
+from generic_callback import GenericCallback
 from cryptography.hazmat.primitives.padding import PKCS7
-from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding, hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers import algorithms,modes,Cipher
+
+from basic_gui import BasicGUI
+
 
 DEFAULT_VALUES = {
     "host" : "127.0.0.1",
@@ -20,6 +23,7 @@ DEFAULT_VALUES = {
 SALT_BY_DEFAULT="kD5meEw298t1pOaG".encode('utf-8') # constant pour ce tp
 SIZE_KEY=16
 N_ITERATION=100000
+
 
 class CypheredGUI(BasicGUI):
     
@@ -81,8 +85,7 @@ class CypheredGUI(BasicGUI):
         
         encryptor =cipher.encryptor() 
         encrypted=encryptor.update(data_padded)+encryptor.finalize() # Données chiffrées
-        print("iv ",(iv))
-        print("encry ",(encrypted))
+        
         return (iv,encrypted)
         
     def decrypt(self,iv:bytes,encrypted:bytes)->str:

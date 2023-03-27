@@ -1,28 +1,20 @@
 import os
 import base64
+import hashlib
 import logging
 import dearpygui.dearpygui as dpg
-from basic_gui import *
-import serpent
-from cryptography.hazmat.primitives.ciphers import algorithms,modes,Cipher
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import padding, hashes
-from cryptography.hazmat.primitives.padding import PKCS7
-from cryptography.hazmat.backends import default_backend
-from cyphered_gui import*
-import hashlib
 from cryptography.fernet import Fernet
 
+from chat_client import ChatClient
+from cyphered_gui import CypheredGUI
+from generic_callback import GenericCallback
 DEFAULT_VALUES = {
     "host" : "127.0.0.1",
     "port" : "6666",
     "name" : "foo",
     "pwd"  : "pwd_by_def" # Ajout d'un champ password 
 }
-
-SALT_BY_DEFAULT="kD5meEw298t1pOaG".encode('utf-8') # constant pour ce tp
 SIZE_KEY=16
-N_ITERATION=100000
 
 class FernetGUI(CypheredGUI):
     
@@ -53,20 +45,23 @@ class FernetGUI(CypheredGUI):
         dpg.set_value("screen", "Connecting")
 
     def encrypt(self,_in:str)->tuple([bytes,bytes]):
-        
+        iv=bytes(os.urandom(SIZE_KEY))
+
         fernet=Fernet(self._key)
         encrypted=fernet.encrypt(bytes(_in,'utf-8'))
-        return (encrypted)
+        #iv=fernet.encrypt(bytes(iv,'utf-8'))
+
+        return (iv, encrypted)
         
     def decrypt(self,iv:bytes, encrypted:bytes)->str:
         iv=base64.b64decode(iv)
         encrypted=base64.b64decode(encrypted)
-        fernet=Fernet(self._key)
-        iv_decrypted=fernet.decrypt(bytes(iv,'utf-8'))
-        message_decrypted=fernet.decrypt(bytes(encrypted,'utf-8'))
-        result=iv_decrypted.decode('utf-8'),message_decrypted.decode('utf-8')
 
-        return result
+        fernet=Fernet(self._key)
+        # iv_decrypted=fernet.decrypt(bytes(iv,'utf-8'))
+        message_decrypted=fernet.decrypt(bytes(encrypted))
+
+        return message_decrypted.decode('utf-8')
     
    
 
