@@ -13,24 +13,19 @@ DEFAULT_VALUES = {
     "name" : "foo",
     "pwd"  : "pwd_by_def" # Ajout d'un champ password 
 }
-TIME_TO_LIVE = 30 # durée de validité message (secondes)
-import os
-import base64
-import hashlib
-import logging
-import dearpygui.dearpygui as dpg
-from cryptography.fernet import Fernet
 
-from chat_client import ChatClient
-from cyphered_gui import CypheredGUI
-from generic_callback import GenericCallback
+TIME_TO_LIVE = 30 # durée de validité message (secondes)
+
+
 DEFAULT_VALUES = {
     "host" : "127.0.0.1",
     "port" : "6666",
     "name" : "foo",
     "pwd"  : "pwd_by_def" # Ajout d'un champ password 
 }
+
 SIZE_KEY=16
+
 
 class TimeFernetGUI(FernetGUI):
     
@@ -65,8 +60,6 @@ class TimeFernetGUI(FernetGUI):
             logging.error("Invalid Token")
             raise InvalidToken
         
-    
-   
 
 if __name__=="__main__":
 
