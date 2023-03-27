@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.ciphers import algorithms,modes,Cipher
 
 from basic_gui import BasicGUI
 
-
+# definition des champs propres à l'interface de connexion
 DEFAULT_VALUES = {
     "host" : "127.0.0.1",
     "port" : "6666",
@@ -20,17 +20,23 @@ DEFAULT_VALUES = {
     "pwd"  : "pwd_by_def" # Ajout d'un champ password 
 }
 
+# sel constant encodé
 SALT_BY_DEFAULT="kD5meEw298t1pOaG".encode('utf-8') # constant pour ce tp
+
+# taille du sel
 SIZE_KEY=16
+
+# nombre d'itération
 N_ITERATION=100000
 
 
 class CypheredGUI(BasicGUI):
     
+    # initialisation des classes mères lorsque déclaration classe fille 
     def __init__(self) -> None:
         super().__init__()
         self._key=bytes()
-        #self._pwd=None
+
 
     # surcharge méthode pour ajouter champ password
     def _create_connection_window(self):
@@ -46,6 +52,7 @@ class CypheredGUI(BasicGUI):
 
             dpg.add_button(label="Connect", callback=self.run_chat)
 
+
     def run_chat(self, sender, app_data)->None:
         # callback used by the connection windows to start a chat session
         host = dpg.get_value("connection_host")
@@ -53,13 +60,16 @@ class CypheredGUI(BasicGUI):
         name = dpg.get_value("connection_name")
         pwd:str = dpg.get_value("connection_pwd") 
 
-        kdf=PBKDF2HMAC(
-            algorithm=hashes.SHA256(),#algorithms.AES128(self._key),#AES128(self._key),
+        # méthode de dérivation de clef
+        key_derivation_method=PBKDF2HMAC(
+            algorithm=hashes.SHA256(), # hashage par SHA256 (découpages, compressions du sel)
             length=SIZE_KEY,
             salt=SALT_BY_DEFAULT,
             iterations=N_ITERATION
         )
-        self._key=kdf.derive(pwd.encode('utf-8'))
+
+        #dérivation de la clef à partir du mot de passe, par la méthode PBKDF2HMAC
+        self._key=key_derivation_method.derive(pwd.encode('utf-8'))
 
         self._log.info(f"Connecting {name}@{host}:{port}")
         self._callback = GenericCallback()
@@ -73,40 +83,67 @@ class CypheredGUI(BasicGUI):
 
     def encrypt(self,_in:str)->tuple([bytes,bytes]):
         
+        # génération aléatoire de la taille de la clef (16 octets=128 bits)
+        # du vecteur d'initialisation
         iv=bytes(os.urandom(SIZE_KEY))
 
+        # définition de la taille du bloc subissant le chiffrement AES128
         size_of_block=algorithms.AES128.block_size
-        padder=padding.PKCS7(size_of_block).padder()
-        serialization=serpent.dumps(_in)#,encoding='utf-8'
-        input_bytes=serpent.tobytes(serialization)
-        data_padded=padder.update(input_bytes)+padder.finalize()#_in.encode('utf-8')
 
+        # padding des bloc selon la syntaxe PKCS7 d'enchiffrement
+        padder=padding.PKCS7(size_of_block).padder()
+
+        # 
+        serialization=serpent.dumps(_in)
+        input_bytes=serpent.tobytes(serialization)
+
+        # padding des données en bytes 
+        data_padded=padder.update(input_bytes)+padder.finalize()
+
+        # préparation de la méthode de chiffrement par la méthode CTR
+        # selon la clef chiffrée par AES128
         cipher=Cipher(algorithms.AES128(self._key),modes.CTR(iv))
         
+        # génération de l'enchiffreur
         encryptor =cipher.encryptor() 
+
+        # padding et finalisation
         encrypted=encryptor.update(data_padded)+encryptor.finalize() # Données chiffrées
         
         return (iv,encrypted)
         
     def decrypt(self,iv:bytes,encrypted:bytes)->str:
         
+        # decodage selon le standard base64
         iv=base64.b64decode(iv)
         encrypted=base64.b64decode(encrypted)
+
+        # préparation de la méthode de dechiffrement par la méthode CTR du v.i.
+        # selon la clef chiffrée par AES128
         cipher=Cipher(algorithms.AES128(self._key),modes.CTR(iv))
+
+        # génération du déchiffreur 
         decryptor=cipher.decryptor()
         
+        # mise à jour et finalisation des données enchiffrées
         result_padded=decryptor.update(encrypted)+decryptor.finalize()
+
+        # "de"padding
         unpadder=PKCS7(SIZE_KEY*8).unpadder()
+
+        # finalisation
         result=unpadder.update(result_padded)+unpadder.finalize()
 
         return result.decode('utf-8')
     
     def send(self,message:str):
+        #envoi du message chiffré
         self._client.send_message(self.encrypt(message))
-        #BasicGUI.send(encrypted_message)
+
     
     def recv(self):
         
+        # reception et affichage des messages déchiffrés
         if self._callback is not None:
             for user, message in self._callback.get():
                 self.update_text_screen(f"{user} : {self.decrypt(message[0]['data'],message[1]['data'])}")
